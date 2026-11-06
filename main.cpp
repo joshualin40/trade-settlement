@@ -7,6 +7,7 @@
 #include <thread> 
 #include <queue> 
 #include <optional> 
+#include <vector> 
 
 using namespace settlement;
 
@@ -33,7 +34,6 @@ void consumer(Counter& counter, BlockingQueue<Trade>& q, Ledger& l) {
     }
 }
 int main() {
-    std::cout << "Hello"; 
     std::random_device rd; 
     unsigned int seed1 = rd(); 
     unsigned int seed2 = rd(); 
@@ -50,7 +50,7 @@ int main() {
     std::thread c2(consumer, std::ref(counters[1]), std::ref(q), std::ref(l));  
 
     p1.join(); // join producers
-    p2.join(); 
+    p2.join();  
 
     q.close(); 
 

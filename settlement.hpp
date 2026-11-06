@@ -36,14 +36,15 @@ class Ledger {
             }
         }
         bool settle(const Trade& t) {
-            if (lookup[t.buyer]->balance < t.amount || t.buyer == t.seller) return false;
-            std::scoped_lock lock(lookup[t.buyer]->mu,lookup[t.seller]->mu); // must used scoped lock to prevent deadlock. it can safetly lock two mutexes with a deadlock avoidance alogirhtm
+            std::scoped_lock lock(lookup[t.buyer]->mu,lookup[t.seller]->mu); // must used scoped lock to prevent deadlock. 
+            // it can safetly lock two mutexes with a deadlock avoidance alogirhtm
+            if (lookup[t.buyer]->balance < t.amount || t.buyer == t.seller) return false; 
             lookup[t.buyer]->balance -= t.amount;
             lookup[t.seller]->balance += t.amount;
             return true;
         }
         std::int64_t total() const {
-            std::int64_t res;
+            std::int64_t res = 0;
             for (const auto& [key, value]: lookup)
                 res += value->balance;
             return res;
@@ -76,19 +77,21 @@ class BlockingQueue {
 
         // worker thread 
         std::optional<T> pop() { // wait for an item; std::nullopt once closed AND empty 
-            if (closed && q.empty()) return std::nullopt;
+            
             // wait until the q is not empty, releasing lock while waiting
             std::unique_lock<std::mutex> lock(mu);
+            if (closed && q.empty()) return std::nullopt; // data race!
             cv.wait(lock, [this]{ return !q.empty() || closed; }); // access class members by capturing this. // makes the current thread wait until predicate condition is true
-            if (closed) return std::nullopt; // return if q is empty 
-            T item = q.front();
-            q.pop();
+            if (closed) return std::nullopt; 
+            T item = q.front(); 
+            q.pop(); 
             lock.unlock(); 
             return item;
         }
         void close() {
-            cv.notify_all(); // wake up all waiting workers
+            std::unique_lock<std::mutex> lock(mu); 
             closed = true;
+            cv.notify_all(); // wake up all waiting workers
         }
     private:
         std::queue<T> q;
