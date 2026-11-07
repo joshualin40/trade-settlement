@@ -36,9 +36,10 @@ class Ledger {
             }
         }
         bool settle(const Trade& t) {
+            if (t.buyer == t.seller) return false; 
             std::scoped_lock lock(lookup[t.buyer]->mu,lookup[t.seller]->mu); // must used scoped lock to prevent deadlock. 
             // it can safetly lock two mutexes with a deadlock avoidance alogirhtm
-            if (lookup[t.buyer]->balance < t.amount || t.buyer == t.seller) return false; 
+            if (lookup[t.buyer]->balance < t.amount) return false; 
             lookup[t.buyer]->balance -= t.amount;
             lookup[t.seller]->balance += t.amount;
             return true;
@@ -77,19 +78,18 @@ class BlockingQueue {
 
         // worker thread 
         std::optional<T> pop() { // wait for an item; std::nullopt once closed AND empty 
-            
             // wait until the q is not empty, releasing lock while waiting
             std::unique_lock<std::mutex> lock(mu);
-            if (closed && q.empty()) return std::nullopt; // data race!
+            if (closed && q.empty()) return std::nullopt; // data race! (if it was on line 80). 
             cv.wait(lock, [this]{ return !q.empty() || closed; }); // access class members by capturing this. // makes the current thread wait until predicate condition is true
-            if (closed) return std::nullopt; 
+            if (q.empty()) return std::nullopt; // closed
             T item = q.front(); 
             q.pop(); 
             lock.unlock(); 
             return item;
         }
         void close() {
-            std::unique_lock<std::mutex> lock(mu); 
+            std::unique_lock<std::mutex> lock(mu); // must lock this
             closed = true;
             cv.notify_all(); // wake up all waiting workers
         }

@@ -8,8 +8,8 @@ project(trade-settlement LANGUAGES CXX)
 add_executable(trade_app main.cpp)
 
 # (Optional TSan) Apply ThreadSanitizer directly to the application target
-target_compile_options(trade_app PRIVATE -fsanitize=thread -g -fno-omit-frame-pointer)
-target_link_options(trade_app PRIVATE -fsanitize=thread)
+# target_compile_options(trade_app PRIVATE -fsanitize=thread -g -fno-omit-frame-pointer)
+# target_link_options(trade_app PRIVATE -fsanitize=thread)
 
 # 3. Testing Target Configuration
 # Note: CMake has a built-in standard module 'CTest' that defines BUILD_TESTING for you
