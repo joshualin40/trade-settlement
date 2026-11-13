@@ -5,44 +5,25 @@
 #include <memory> 
 #include <random> 
 #include <thread> 
-#include <queue> 
-#include <optional> 
 #include <vector> 
 
 using namespace settlement;
 
-void producer(unsigned int seed, BlockingQueue<Trade>& q) {
-    std::mt19937 engine(seed); 
-    std::uniform_int_distribution<int> account_distrib(0,19);
-    std::uniform_int_distribution<int> amount_distrib(1,1'000);
+const int ACCOUNT_NUMBERS = 20; 
+const int STARTING_BALANCE = 1'000'000; 
+const int TRADES_PER_PRODUCER = 100'000; 
 
-    for (int i = 0; i < 100'000; ++i) { // 100,000 random trades for each producer
-        int buyer = account_distrib(engine);
-        int seller = account_distrib(engine);
-        int amount = amount_distrib(engine);
-        Trade t{buyer, seller, amount}; 
-        q.push(t); 
-    }
-}
 
-void consumer(Counter& counter, BlockingQueue<Trade>& q, Ledger& l) {
-    auto trade = q.pop(); 
-    while (trade.has_value()) {
-        if (l.settle(trade.value())) counter.settled += 1;
-        else counter.rejected += 1; 
-        trade = q.pop();
-    }
-}
 int main() {
     std::random_device rd; 
     unsigned int seed1 = rd(); 
     unsigned int seed2 = rd(); 
 
     BlockingQueue<Trade> q; 
-    std::thread p1(producer, seed1, std::ref(q)); 
-    std::thread p2(producer, seed2, std::ref(q)); 
+    std::thread p1(producer, seed1, std::ref(q), TRADES_PER_PRODUCER); 
+    std::thread p2(producer, seed2, std::ref(q), TRADES_PER_PRODUCER); 
 
-    Ledger l(20, 1'000'000); 
+    Ledger l(ACCOUNT_NUMBERS, STARTING_BALANCE); 
     std::vector<Counter> counters(4, Counter{0,0});
     std::thread c1(consumer, std::ref(counters[0]), std::ref(q), std::ref(l)); 
     std::thread c3(consumer, std::ref(counters[2]), std::ref(q), std::ref(l)); 
@@ -64,3 +45,6 @@ int main() {
     std::cout << "Total Settled: " << total_settled << '\n' << "Total Rejected: " << total_rejected << '\n'; 
     std::cout << "Total: " << l.total();  
 }
+
+// std::atomic are faster than wrappiong regular variables in a mutex because they don't use a lock 
+// 
