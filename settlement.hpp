@@ -7,6 +7,7 @@
 #include <optional>
 #include <queue>
 #include <unordered_map>
+#include <random> 
 
 namespace settlement {
 
@@ -39,9 +40,9 @@ class Ledger {
             if (t.buyer == t.seller) return false; 
             std::scoped_lock lock(lookup[t.buyer]->mu,lookup[t.seller]->mu); // must used scoped lock to prevent deadlock. 
             // it can safetly lock two mutexes with a deadlock avoidance alogirhtm
-            if (lookup[t.buyer]->balance < t.amount) return false; 
-            lookup[t.buyer]->balance -= t.amount;
-            lookup[t.seller]->balance += t.amount;
+            if (lookup.at(t.buyer)->balance < t.amount) return false; 
+            lookup.at(t.buyer)->balance -= t.amount;
+            lookup.at(t.seller)->balance += t.amount;
             return true;
         }
         std::int64_t total() const {
@@ -89,8 +90,10 @@ class BlockingQueue {
             return item;
         }
         void close() {
-            std::unique_lock<std::mutex> lock(mu); // must lock this
-            closed = true;
+            {
+                std::unique_lock<std::mutex> lock(mu); // must lock this
+                closed = true;
+            }
             cv.notify_all(); // wake up all waiting workers
         }
     private:
@@ -100,4 +103,27 @@ class BlockingQueue {
         bool closed;
 };
 
+// utility functions
+void producer(unsigned int seed, BlockingQueue<Trade>& q, int trades_per_producer) {
+    std::mt19937 engine(seed); 
+    std::uniform_int_distribution<int> account_distrib(0,19);
+    std::uniform_int_distribution<int> amount_distrib(1,1'000);
+
+    for (int i = 0; i < trades_per_producer; ++i) { // 100,000 random trades for each producer
+        int buyer = account_distrib(engine);
+        int seller = account_distrib(engine);
+        int amount = amount_distrib(engine);
+        Trade t{buyer, seller, amount}; 
+        q.push(t); 
+    }
+}
+
+void consumer(Counter& counter, BlockingQueue<Trade>& q, Ledger& l) {
+    auto trade = q.pop(); 
+    while (trade.has_value()) {
+        if (l.settle(trade.value())) counter.settled += 1;
+        else counter.rejected += 1; 
+        trade = q.pop();
+    }
+}
 } // namespace settlement
